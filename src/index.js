@@ -6,7 +6,6 @@ const WebPushLib = require('./web-push-lib.js');
 const WebPushError = require('./web-push-error.js');
 
 const webPush = new WebPushLib();
-
 module.exports = {
   WebPushError: WebPushError,
   encrypt: encryptionHelper.encrypt,
@@ -15,5 +14,6 @@ module.exports = {
   setGCMAPIKey: webPush.setGCMAPIKey,
   setVapidDetails: webPush.setVapidDetails,
   generateRequestDetails: webPush.generateRequestDetails,
-  sendNotification: webPush.sendNotification
+  sendNotification: webPush.sendNotification,
+  closeHttp2Connection: webPush.closeHttp2Connection,
 };
