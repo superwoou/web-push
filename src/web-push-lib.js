@@ -2,7 +2,7 @@
 
 const urlBase64 = require('urlsafe-base64');
 const url = require('url');
-const https = require('./../node_modules/http2');
+const https = require('./../lib/http.js');
 
 const WebPushError = require('./web-push-error.js');
 const vapidHelper = require('./vapid-helper.js');
