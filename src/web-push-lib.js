@@ -282,7 +282,16 @@ WebPushLib.prototype.sendNotification =
       for(let i in requestDetails.headers)
         headers[i.toLowerCase()] = requestDetails.headers[i];
 
-      const pushRequest = clientSessions[host].request(headers);
+      let pushRequest = null;
+      try {
+        pushRequest = clientSessions[host].request(headers);
+      } catch(e) {
+        if(e.code == 'ERR_HTTP2_INVALID_SESSION') {
+          delete clientSessions[host];
+          clientSessions[host] = http2.connect(host);
+          pushRequest = clientSessions[host].request(headers);
+        }
+      }
 
       let _timer = setTimeout(() =>{
         try {
