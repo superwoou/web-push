@@ -21,6 +21,7 @@ let gcmAPIKey = '';
 let vapidDetails;
 
 const clientSessions = {};
+const onTimeout = {};
 
 function WebPushLib() {
 }
@@ -268,7 +269,9 @@ WebPushLib.prototype.sendNotification =
       const host = urlParts.protocol + "//" + urlParts.host;
 
       if(!clientSessions[host]) {
-        clientSessions[host] = http2.connect(host);
+        const session = http2.connect(host);
+        clientSessions[host] = session;
+        // onTimeout[host] = [];
       }
 
       const headers = {
@@ -280,12 +283,26 @@ WebPushLib.prototype.sendNotification =
         headers[i.toLowerCase()] = requestDetails.headers[i];
 
       const pushRequest = clientSessions[host].request(headers);
+
+      let _timer = setTimeout(() =>{
+        try {
+          pushRequest.rstWithCancel();
+          if(clientSessions[host]) {
+            clientSessions[host].destroy();
+    			  delete clientSessions[host];
+          }
+        } catch(e) {
+        }
+        reject(new WebPushError("REQUEST TIMEOUT", 408));
+      }, 10000);
+
       pushRequest.on('response', (resp_headers) => {
         let responseText = '';
         pushRequest.on('data', (chunk) => {
           responseText += chunk;
         });
         pushRequest.on('end', () => {
+          clearTimeout(_timer);
           if(resp_headers[HTTP2_HEADER_STATUS] !== 201) {
             reject(new WebPushError('Received unexpected response code',
               resp_headers[HTTP2_HEADER_STATUS], resp_headers, responseText, requestDetails.endpoint));
@@ -300,6 +317,7 @@ WebPushLib.prototype.sendNotification =
         });
       });
       pushRequest.on('error', (err) => {
+        clearTimeout(_timer);
         reject(err);
       })
       if (requestDetails.body) {
