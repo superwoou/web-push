@@ -2,7 +2,13 @@
 
 const urlBase64 = require('urlsafe-base64');
 const url = require('url');
-const https = require('./../lib/http.js');
+const http2 = require('http2');
+const {
+  HTTP2_HEADER_METHOD,
+  HTTP2_HEADER_PATH,
+  HTTP2_HEADER_STATUS,
+  HTTP2_HEADER_CONTENT_TYPE,
+} = http2.constants;
 
 const WebPushError = require('./web-push-error.js');
 const vapidHelper = require('./vapid-helper.js');
@@ -259,50 +265,56 @@ WebPushLib.prototype.sendNotification =
     return new Promise((resolve, reject) => {
       const httpsOptions = {};
       const urlParts = url.parse(requestDetails.endpoint);
-      httpsOptions.hostname = urlParts.hostname;
-      httpsOptions.port = urlParts.port;
-      httpsOptions.path = urlParts.path;
+      const host = urlParts.protocol + "//" + urlParts.host;
 
-      httpsOptions.headers = requestDetails.headers;
-      httpsOptions.method = requestDetails.method;
+      if(!clientSessions[host]) {
+        clientSessions[host] = http2.connect(host);
+      }
 
-      const pushRequest = https.request(httpsOptions, function(pushResponse) {
+      const headers = {
+        ':method': requestDetails.method,
+        ':path': urlParts.path
+      };
+
+      for(let i in requestDetails.headers)
+        headers[i.toLowerCase()] = requestDetails.headers[i];
+
+      const pushRequest = clientSessions[host].request(headers);
+      pushRequest.on('response', (resp_headers) => {
         let responseText = '';
-
-        pushResponse.on('data', function(chunk) {
+        pushRequest.on('data', (chunk) => {
           responseText += chunk;
         });
-
-        pushResponse.on('end', function() {
-          if (pushResponse.statusCode !== 201) {
+        pushRequest.on('end', () => {
+          if(resp_headers[HTTP2_HEADER_STATUS] !== 201) {
             reject(new WebPushError('Received unexpected response code',
-              pushResponse.statusCode, pushResponse.headers, responseText, requestDetails.endpoint));
+              resp_headers[HTTP2_HEADER_STATUS], resp_headers, responseText, requestDetails.endpoint));
           } else {
             resolve({
-              statusCode: pushResponse.statusCode,
+              statusCode: resp_headers[HTTP2_HEADER_STATUS],
               body: responseText,
-              headers: pushResponse.headers
-            });
+              headers: resp_headers
+            })
           }
+          resolve();
         });
       });
-
-      pushRequest.on('error', function(e) {
-        reject(e);
-      });
-
+      pushRequest.on('error', (err) => {
+        reject(err);
+      })
       if (requestDetails.body) {
         pushRequest.write(requestDetails.body);
       }
-
       pushRequest.end();
     });
   };
 
 WebPushLib.prototype.closeHttp2Connection =
   function() {
-    for(let i in clientSessions)
+    for(let i in clientSessions) {
       clientSessions[i].destroy();
+			delete clientSessions[i];
+		}
   }
 
 module.exports = WebPushLib;
