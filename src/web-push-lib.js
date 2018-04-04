@@ -297,7 +297,10 @@ WebPushLib.prototype.sendNotification =
         try {
           pushRequest.rstWithCancel();
           if(clientSessions[host]) {
-            clientSessions[host].destroy();
+						try {
+	            clientSessions[host].destroy();
+						} catch(e) {
+						}
     			  delete clientSessions[host];
           }
         } catch(e) {
@@ -339,7 +342,10 @@ WebPushLib.prototype.sendNotification =
 WebPushLib.prototype.closeHttp2Connection =
   function() {
     for(let i in clientSessions) {
-      clientSessions[i].destroy();
+			try {
+	      clientSessions[i].destroy();
+			} catch(e) {
+			}
 			delete clientSessions[i];
 		}
   }
