@@ -332,10 +332,30 @@ WebPushLib.prototype.sendNotification =
         clearTimeout(_timer);
         reject(err);
       })
+
       if (requestDetails.body) {
-        pushRequest.write(requestDetails.body);
+				try {
+	        pushRequest.write(requestDetails.body);
+				} catch(e) {
+					try {
+						clientSessions[host].destroy()
+					} catch(e) {
+					}
+					delete clientSessions[host]
+					return reject(new WebPushError('Write error', 500))
+				}
       }
-      pushRequest.end();
+
+			try {
+	      pushRequest.end();
+			} catch(e) {
+				try {
+					clientSessions[host].destroy()
+				} catch(e) {
+				}
+				delete clientSessions[host]
+				reject(new WebPushError('Write error', 500))
+			}
     });
   };
 
